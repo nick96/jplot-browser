@@ -19,15 +19,15 @@ type res struct {
 }
 
 // FromHTTP fetch data points from url every interval and keep size points.
-func FromHTTP(url string, interval time.Duration, size int) *Points {
+func FromHTTP(target chan<- Point, url string, interval time.Duration, size int) *Points {
 	h := httpSource{
 		c:    make(chan res),
 		done: make(chan struct{}),
 	}
 	go h.run(url, interval)
 	return &Points{
-		Size:   size,
 		Source: h,
+		Target: target,
 	}
 }
 

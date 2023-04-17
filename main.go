@@ -1,20 +1,27 @@
 package main // import "github.com/rs/jplot"
 
 import (
+	_ "embed"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
-	"strings"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/monochromegane/terminal"
+	"github.com/r3labs/sse/v2"
 	"github.com/rs/jplot/data"
-	"github.com/rs/jplot/graph"
-	"github.com/rs/jplot/term"
 )
+
+//go:embed index.html
+var webUI string
 
 func main() {
 	flag.Usage = func() {
@@ -35,15 +42,8 @@ func main() {
 	interval := flag.Duration("interval", time.Second, "When url is provided, defines the interval between fetches."+
 		" Note that counter fields are computed based on this interval.")
 	steps := flag.Int("steps", 100, "Number of values to plot.")
-	rows := flag.Int("rows", 0, "Limits the height of the graph output.")
+	port := flag.Int("port", 8080, "Port to run server on.")
 	flag.Parse()
-
-	if !term.HasGraphicsSupport() {
-		fatal("iTerm2 or DRCS Sixel graphics required")
-	}
-	if os.Getenv("TERM") == "screen" {
-		fatal("screen and tmux not supported")
-	}
 
 	if len(flag.Args()) == 0 {
 		flag.Usage()
@@ -54,17 +54,33 @@ func main() {
 	if err != nil {
 		fatal("Cannot parse spec: ", err)
 	}
+
 	var dp *data.Points
+	target := make(chan data.Point)
 	if *url != "" {
-		dp = data.FromHTTP(*url, *interval, *steps)
+		dp = data.FromHTTP(target, *url, *interval, *steps)
 	} else if !terminal.IsTerminal(os.Stdin) {
-		dp = data.FromStdin(*steps)
+		dp = data.FromStdin(target, *steps)
 	} else {
 		fatal("neither --url nor stdin is provided")
 	}
-	dash := graph.Dash{
-		Specs: specs,
-		Data:  dp,
+
+	sseServer := sse.New()
+	dataPointsStream := sseServer.CreateStream("data-points")
+	http.HandleFunc("/events", sseServer.ServeHTTP)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := w.Write([]byte(webUI)); err != nil {
+			http.Error(w, "Failed to response with file", 503)
+		}
+	})
+
+	go func() {
+		log.Printf("Listening on http://localhost:%d", *port)
+		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
+	}()
+	cmd := exec.Command("open", fmt.Sprintf("http://localhost:%d", *port))
+	if err := cmd.Start(); err != nil {
+		log.Fatalf("Failed to open http://localhost:%d: %v", *port, err)
 	}
 
 	wg := &sync.WaitGroup{}
@@ -78,26 +94,19 @@ func main() {
 		defer t.Stop()
 		c := make(chan os.Signal, 2)
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-		i := 0
-		for {
+		for eventID := 1; ; eventID++ {
 			select {
-			case <-t.C:
-				if i == 0 {
-					prepare(*rows)
-					defer cleanup(*rows)
+			case value := <-target:
+				data, err := json.Marshal(value)
+				if err != nil {
+					log.Printf("Failed to JSONify value %v: %v", value, err)
+					continue
 				}
-				i++
-				if i%120 == 0 {
-					// Clear scrollback to avoid iTerm from eating all the memory.
-					term.ClearScrollback()
-				}
-				term.CursorSavePosition()
-				render(dash, *rows)
-				term.CursorRestorePosition()
+				sseServer.Publish(dataPointsStream.ID, &sse.Event{
+					ID:   []byte(strconv.Itoa(eventID)),
+					Data: data,
+				})
 			case <-exit:
-				if i == 0 {
-					render(dash, *rows)
-				}
 				return
 			case <-c:
 				dp.Close()
@@ -114,44 +123,4 @@ func main() {
 func fatal(a ...interface{}) {
 	fmt.Println(append([]interface{}{"jplot: "}, a...)...)
 	os.Exit(1)
-}
-
-func prepare(rows int) {
-	term.HideCursor()
-	if rows == 0 {
-		var err error
-		if rows, err = term.Rows(); err != nil {
-			fatal("Cannot get window size: ", err)
-		}
-	}
-	print(strings.Repeat("\n", rows))
-	term.CursorMove(term.Up, rows)
-}
-
-func cleanup(rows int) {
-	term.ShowCursor()
-	if rows == 0 {
-		rows, _ = term.Rows()
-	}
-	term.CursorMove(term.Down, rows)
-	print("\n")
-}
-
-func render(dash graph.Dash, rows int) {
-	size, err := term.Size()
-	if err != nil {
-		fatal("Cannot get window size: ", err)
-	}
-	width, height := size.Width, size.Height
-	if rows > 0 {
-		height = size.Height / size.Row * rows
-	} else {
-		rows = size.Row
-	}
-	// Use iTerm2 image display feature.
-	term := term.NewImageWriter(width, height)
-	defer term.Close()
-	if err := dash.Render(term, width, height); err != nil {
-		fatal(fmt.Sprintf("cannot render graph: %v", err.Error()))
-	}
 }

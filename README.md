@@ -1,39 +1,23 @@
 # jplot
-[![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/rs/jplot/master/LICENSE) [![Build Status](https://travis-ci.org/rs/jplot.svg?branch=master)](https://travis-ci.org/rs/jplot)
+[![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](https://raw.githubusercontent.com/rs/jplot/master/LICENSE)
 
-Jplot tracks expvar-like (JSON) metrics and plot their evolution over time right into your iTerm2 terminal (or DRCS Sixel Graphics).
+This is a fork of [jplot](https://github.com/rs/jplot) which renders
+the graphs in the browser, rather than in iTerm because I found that
+rendering them in iTerm was too finicky.
 
-![](doc/demo.gif)
+Jplot-browser tracks expvar-like (JSON) metrics and plot their evolution over time right into your browser.
 
-Above capture is jplot monitoring a Go service's [expvar](https://golang.org/pkg/expvar/):
+![](doc/jplot_browser.gif)
 
-```
-jplot --url http://:8080/debug/vars \
-    memstats.HeapSys+memstats.HeapAlloc+memstats.HeapIdle+marker,counter:memstats.NumGC \
-    counter:memstats.TotalAlloc \
-    memstats.HeapObjects \
-    memstats.StackSys+memstats.StackInuse
-```
-
-By default, jplot uses the full size of the terminal, but it is possible to limit the render to a few rows:
-
-![](doc/rows.gif)
+Above capture is jplot monitoring a service's [expvar](https://golang.org/pkg/expvar/):
 
 ## Install
-
-Using [homebrew](http://brew.sh/):
-
-```
-brew install rs/tap/jplot
-```
 
 From source:
 
 ```
-go install github.com/rs/jplot@latest
+go install github.com/nick96/jplot-browser@latest
 ```
-
-This tool does only work with [iTerm2](https://www.iterm2.com), or terminals support DRCS Sixel Graphics.
 
 ## Usage
 
@@ -60,8 +44,6 @@ You can graph the number of thread over time:
 jplot --url http://:8080/debug/vars Threads
 ```
 
-![](doc/single.png)
-
 Or create a graph with both Utime and Stime growth rate on the same axis by using `+` between two field paths:
 
 ```
@@ -70,16 +52,11 @@ jplot --url http://:8080/debug/vars counter:cpu.STime+counter:cpu.UTime
 
 Note: the `counter:` prefix instructs jplot to compute the difference between the values instead of showing their absolute value.
 
-![](doc/dual.png)
-
-
 Or create several graphs by providing groups of fields as separate arguments; each argument creates a new graph:
 
 ```
 jplot --url http://:8080/debug/vars mem.Heap+mem.Sys+mem.Stack counter:cpu.STime+cpu.UTime Threads
 ```
-
-![](doc/all.png)
 
 ### Spec Syntax
 

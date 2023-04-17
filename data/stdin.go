@@ -12,10 +12,10 @@ type stdin struct {
 }
 
 // FromStdin reads data from stdin as one JSON object per line.
-func FromStdin(size int) *Points {
+func FromStdin(target chan<- Point, size int) *Points {
 	return &Points{
-		Size:   size,
 		Source: stdin{bufio.NewScanner(os.Stdin)},
+		Target: target,
 	}
 }
 

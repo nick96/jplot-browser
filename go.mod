@@ -13,9 +13,15 @@ require (
 )
 
 require (
+	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
+	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
+)
+
+require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/elgs/gosplitargs v0.0.0-20161028071935-a491c5eeb3c8 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
+	github.com/r3labs/sse/v2 v2.10.0
 	github.com/soniakeys/quant v1.0.0 // indirect
 	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/image v0.5.0 // indirect

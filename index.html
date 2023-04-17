@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <meta name="author" content="">
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+
+<body>
+
+  <h1>Chart</h1>
+  <div>
+    <canvas id="chart-1"></canvas>
+  </div>
+
+  <details>
+    <summary>Events</summary>
+    <ol id="event-list"></ol>
+  </details>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const chartElem = document.getElementById("chart-1");
+    const chart = new Chart(chartElem, {
+      type: "line",
+      labels: [],
+      datasets: [],
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+          },
+        },
+        plugins: {
+          colors: {
+            forceOverride: true,
+          }
+        }
+      },
+    });
+
+    function debounce(func, timeout = 300){
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => { func.apply(this, args); }, timeout);
+      };
+    }
+
+    const debouncedChartUpdate = debounce(() => {
+      const maxData = 50;
+
+      while (chart.data.labels.length > maxData) {
+        chart.data.labels.shift();
+      }
+
+      chart.data.datasets.forEach((dataset) => {
+        while (dataset.data.length >= maxData) {
+          dataset.data.shift();
+        }
+      });
+      console.log("Updating chart:", JSON.stringify(chart.data));
+      chart.update('none');
+    });
+
+    let nextLabel = 1;
+    const source = new EventSource("/events?stream=data-points");
+    source.onmessage = (event) => {
+      let eventData = undefined;
+      try {
+        eventData = JSON.parse(event.data);
+      } catch (e) {
+        console.error(`Failed to parse event data ${event.data}: ${e}`);
+        throw e;
+      }
+      
+      const eventList = document.getElementById("event-list");
+      const newItem = document.createElement("li");
+      newItem.textContent = `message: ${event.data}`;
+      eventList.append(newItem);
+
+      let dataset = chart.data.datasets.find((dataset) => dataset.label === eventData.id);
+      if (!dataset) {
+         dataset = {
+          label: eventData.id,
+          data: [],
+          fill: false,
+          // borderColor: 'rgb(75, 192, 192)',
+          tension: 0.1,
+         };
+        chart.data.datasets.push(dataset);
+      }
+
+      dataset.data.push(eventData.value);
+      if (dataset.data.length > chart.data.labels.length) {
+        console.log(`Dataset ${eventData.id} is longer than labels array. dataset=${dataset.data.length}, labels: ${chart.data.labels.length}`);
+        for (let i = 0; i < dataset.data.length; i++) {
+          chart.data.labels.push(nextLabel);
+          nextLabel += 1;
+        }
+      }
+      debouncedChartUpdate();
+    };
+    
+  </script>
+</body>
+
+</html>
