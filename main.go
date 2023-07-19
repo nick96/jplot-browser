@@ -43,6 +43,7 @@ func main() {
 		" Note that counter fields are computed based on this interval.")
 	steps := flag.Int("steps", 100, "Number of values to plot.")
 	port := flag.Int("port", 8080, "Port to run server on.")
+	print := flag.Bool("print", true, "Print the event data just before sending it to the browser")
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {
@@ -101,6 +102,9 @@ func main() {
 				if err != nil {
 					log.Printf("Failed to JSONify value %v: %v", value, err)
 					continue
+				}
+				if *print {
+					fmt.Println(string(data))
 				}
 				sseServer.Publish(dataPointsStream.ID, &sse.Event{
 					ID:   []byte(strconv.Itoa(eventID)),
